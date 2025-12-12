@@ -1,0 +1,22 @@
+[
+  "macd",
+  "macd_signal",
+  "macd_hist",
+  "ema_5",
+  "ema_10",
+  "ema_20",
+  "returns",
+  "log_returns",
+  "atr",
+  "sma_5",
+  "sma_10",
+  "rsi",
+  "bb_middle",
+  "bb_upper",
+  "bb_lower",
+  "bb_width",
+  "sma_20",
+  "volume_zscore",
+  "volatility",
+  "sma_50"
+]

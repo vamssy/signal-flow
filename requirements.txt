@@ -1,0 +1,35 @@
+# SignalFlow - Real-Time Stock Market Prediction System
+# Install with: pip install -r requirements.txt
+
+# Core ML
+torch>=2.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+
+# Technical Analysis
+ta>=0.10.2
+yfinance>=0.2.30
+
+# Streaming
+kafka-python>=2.0.2
+aiokafka>=0.9.0
+
+# MLflow
+mlflow>=2.8.0
+
+# Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+
+# Configuration
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+pyyaml>=6.0
+
+# Utilities
+structlog>=23.2.0
+rich>=13.0.0
+click>=8.1.0
+tqdm>=4.66.0

@@ -1,0 +1,97 @@
+# Real-Time Stock Market Prediction System Configuration
+
+# Kafka settings
+kafka:
+  bootstrap_servers: "localhost:19092"
+  topics:
+    ohlcv: "market_ohlcv"
+    features: "features"
+    signals: "signals"
+  consumer_group: "stock-prediction-group"
+  auto_offset_reset: "earliest"
+
+# Symbols to track
+symbols:
+  - "AAPL"
+  - "GOOGL"
+  - "MSFT"
+  - "AMZN"
+  - "META"
+
+# Feature engineering settings
+features:
+  # Window for sequential model input
+  sequence_length: 60
+  
+  # Technical indicators to compute
+  indicators:
+    rsi:
+      window: 14
+    macd:
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+    bollinger_bands:
+      window: 20
+      num_std: 2
+    sma:
+      windows: [5, 10, 20, 50]
+    ema:
+      windows: [5, 10, 20]
+    atr:
+      window: 14
+    
+  # Additional features
+  include_returns: true
+  include_log_returns: true
+  include_volatility: true
+  volatility_window: 20
+  include_volume_zscore: true
+  volume_zscore_window: 20
+
+# Model configuration
+model:
+  input_dim: 17  # Number of features after engineering
+  hidden_dim: 128
+  num_layers: 2
+  dropout: 0.2
+  bidirectional: false
+  
+# Training configuration
+training:
+  batch_size: 64
+  learning_rate: 0.001
+  epochs: 50
+  early_stopping_patience: 10
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+  random_seed: 42
+
+# Inference configuration
+inference:
+  model_path: "artifacts/model.pt"
+  scaler_path: "artifacts/scaler.pkl"
+  feature_list_path: "artifacts/feature_list.json"
+  confidence_threshold: 0.6
+  signal_thresholds:
+    buy: 0.55
+    sell: 0.45
+
+# MLflow configuration
+mlflow:
+  tracking_uri: "http://localhost:5001"
+  experiment_name: "stock-prediction-lstm"
+  
+# Replay service configuration
+replay:
+  data_path: "data/ohlcv"
+  replay_speed: 1.0  # 1.0 = real-time, 0.0 = as fast as possible
+  batch_size: 100
+
+# Monitoring configuration
+monitoring:
+  enable_metrics: true
+  metrics_port: 8000
+  log_level: "INFO"
+

@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Prediction Dashboard</title>
+    
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- TradingView Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'monospace'],
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        terminal: {
+                            bg: '#0a0e17',
+                            card: '#111827',
+                            border: '#1f2937',
+                            text: '#e5e7eb',
+                            muted: '#6b7280',
+                        },
+                        signal: {
+                            buy: '#10b981',
+                            sell: '#ef4444',
+                            hold: '#f59e0b',
+                        },
+                        accent: {
+                            cyan: '#06b6d4',
+                            purple: '#8b5cf6',
+                            pink: '#ec4899',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #0a0e17 0%, #111827 50%, #0a0e17 100%);
+        }
+        
+        .glow-buy { box-shadow: 0 0 30px rgba(16, 185, 129, 0.3); }
+        .glow-sell { box-shadow: 0 0 30px rgba(239, 68, 68, 0.3); }
+        .glow-hold { box-shadow: 0 0 30px rgba(245, 158, 11, 0.3); }
+        
+        .signal-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .glass {
+            background: rgba(17, 24, 39, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .confidence-ring {
+            transform: rotate(-90deg);
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        
+        .ticker-tape {
+            animation: ticker 30s linear infinite;
+        }
+        
+        @keyframes ticker {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen text-terminal-text font-sans" x-data="dashboard()">
+    
+    <!-- Header -->
+    <header class="glass sticky top-0 z-50 border-b border-terminal-border">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-signal-buy animate-pulse"></div>
+                        <h1 class="text-xl font-bold font-mono tracking-tight">
+                            <span class="text-accent-cyan">STOCK</span>
+                            <span class="text-terminal-muted">::</span>
+                            <span class="text-accent-purple">PREDICT</span>
+                        </h1>
+                    </div>
+                    <span class="text-xs text-terminal-muted font-mono">v1.0</span>
+                </div>
+                
+                <!-- Connection Status -->
+                <div class="flex items-center gap-4">
+                    <!-- Live Mode Badge -->
+                    <div x-show="isLiveMode" 
+                         class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-signal-buy/20 border border-signal-buy/50">
+                        <div class="w-2 h-2 rounded-full bg-signal-buy animate-pulse"></div>
+                        <span class="text-signal-buy font-mono text-xs font-bold">LIVE MODE</span>
+                    </div>
+                    <div x-show="!isLiveMode && connected"
+                         class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-cyan/20 border border-accent-cyan/50">
+                        <div class="w-2 h-2 rounded-full bg-accent-cyan"></div>
+                        <span class="text-accent-cyan font-mono text-xs font-bold">REPLAY</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm">
+                        <div :class="connected ? 'bg-signal-buy' : 'bg-signal-sell'" 
+                             class="w-2 h-2 rounded-full"></div>
+                        <span class="text-terminal-muted font-mono" x-text="connected ? 'CONNECTED' : 'OFFLINE'"></span>
+                    </div>
+                    <div class="text-xs font-mono text-terminal-muted">
+                        <span x-text="currentTime"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        
+        <!-- Symbol Selector -->
+        <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
+            <template x-for="sym in symbols" :key="sym">
+                <button @click="selectSymbol(sym)"
+                        :class="selectedSymbol === sym ? 
+                            'bg-accent-cyan text-terminal-bg' : 
+                            'glass text-terminal-text hover:bg-terminal-border'"
+                        class="px-4 py-2 rounded-lg font-mono text-sm font-medium transition-all">
+                    <span x-text="sym"></span>
+                </button>
+            </template>
+        </div>
+        
+        <!-- Main Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Signal Card (Large) -->
+            <div class="lg:col-span-1">
+                <div class="glass rounded-2xl p-6 h-full"
+                     :class="{
+                         'glow-buy': lastSignal?.signal === 'BUY',
+                         'glow-sell': lastSignal?.signal === 'SELL',
+                         'glow-hold': lastSignal?.signal === 'HOLD'
+                     }">
+                    
+                    <div class="text-center">
+                        <div class="text-terminal-muted text-sm font-mono mb-2">CURRENT SIGNAL</div>
+                        <div class="text-6xl font-bold font-mono mb-4 signal-pulse"
+                             :class="{
+                                 'text-signal-buy': lastSignal?.signal === 'BUY',
+                                 'text-signal-sell': lastSignal?.signal === 'SELL',
+                                 'text-signal-hold': lastSignal?.signal === 'HOLD',
+                                 'text-terminal-muted': !lastSignal
+                             }"
+                             x-text="lastSignal?.signal || '---'">
+                        </div>
+                        
+                        <!-- Confidence Gauge -->
+                        <div class="relative w-32 h-32 mx-auto mb-4">
+                            <svg class="w-full h-full" viewBox="0 0 100 100">
+                                <!-- Background circle -->
+                                <circle cx="50" cy="50" r="40" 
+                                        stroke="#1f2937" stroke-width="8" fill="none"/>
+                                <!-- Progress circle -->
+                                <circle cx="50" cy="50" r="40" 
+                                        :stroke="lastSignal?.signal === 'BUY' ? '#10b981' : 
+                                                 lastSignal?.signal === 'SELL' ? '#ef4444' : '#f59e0b'"
+                                        stroke-width="8" fill="none"
+                                        stroke-linecap="round"
+                                        class="confidence-ring"
+                                        :stroke-dasharray="251.2"
+                                        :stroke-dashoffset="251.2 - (251.2 * (lastSignal?.confidence || 0))"/>
+                            </svg>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <span class="text-2xl font-bold font-mono" 
+                                      x-text="((lastSignal?.confidence || 0) * 100).toFixed(0) + '%'"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="text-terminal-muted text-sm font-mono">CONFIDENCE</div>
+                        
+                        <!-- Symbol & Price -->
+                        <div class="mt-6 pt-6 border-t border-terminal-border">
+                            <div class="text-3xl font-bold font-mono text-accent-cyan" 
+                                 x-text="selectedSymbol"></div>
+                            <div class="text-2xl font-mono mt-2"
+                                 x-text="lastPrice ? '$' + lastPrice.toFixed(2) : '---'"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chart -->
+            <div class="lg:col-span-2">
+                <div class="glass rounded-2xl p-4 h-[400px]">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="text-sm font-mono text-terminal-muted">
+                            PRICE CHART 
+                            <span class="text-accent-cyan" x-text="'(' + chartPoints + ' points)'"></span>
+                        </div>
+                        <div class="flex gap-2">
+                            <span class="text-xs px-2 py-1 rounded bg-signal-buy/20 text-signal-buy font-mono">↑ BUY</span>
+                            <span class="text-xs px-2 py-1 rounded bg-signal-sell/20 text-signal-sell font-mono">↓ SELL</span>
+                        </div>
+                    </div>
+                    <div id="chart" class="h-[320px]"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stats Row -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+            
+            <!-- Total Signals -->
+            <div class="glass rounded-xl p-4">
+                <div class="text-terminal-muted text-xs font-mono mb-1">TOTAL SIGNALS</div>
+                <div class="text-2xl font-bold font-mono text-accent-cyan" x-text="stats.total_signals"></div>
+            </div>
+            
+            <!-- Avg Confidence -->
+            <div class="glass rounded-xl p-4">
+                <div class="text-terminal-muted text-xs font-mono mb-1">AVG CONFIDENCE</div>
+                <div class="text-2xl font-bold font-mono text-accent-purple" 
+                     x-text="(stats.avg_confidence * 100).toFixed(1) + '%'"></div>
+            </div>
+            
+            <!-- Buy Count -->
+            <div class="glass rounded-xl p-4">
+                <div class="text-terminal-muted text-xs font-mono mb-1">BUY SIGNALS</div>
+                <div class="text-2xl font-bold font-mono text-signal-buy" 
+                     x-text="stats.signals_by_type.BUY || 0"></div>
+            </div>
+            
+            <!-- Sell Count -->
+            <div class="glass rounded-xl p-4">
+                <div class="text-terminal-muted text-xs font-mono mb-1">SELL SIGNALS</div>
+                <div class="text-2xl font-bold font-mono text-signal-sell" 
+                     x-text="stats.signals_by_type.SELL || 0"></div>
+            </div>
+        </div>
+        
+        <!-- Signal History -->
+        <div class="mt-6">
+            <div class="glass rounded-2xl p-4">
+                <div class="text-sm font-mono text-terminal-muted mb-4">SIGNAL HISTORY</div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm font-mono">
+                        <thead>
+                            <tr class="text-terminal-muted text-left border-b border-terminal-border">
+                                <th class="pb-2 pr-4">TIME</th>
+                                <th class="pb-2 pr-4">SYMBOL</th>
+                                <th class="pb-2 pr-4">SIGNAL</th>
+                                <th class="pb-2 pr-4">CONFIDENCE</th>
+                                <th class="pb-2">PROBABILITY</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(signal, index) in signalHistory.slice(0, 10)" :key="index">
+                                <tr class="border-b border-terminal-border/50">
+                                    <td class="py-2 pr-4 text-terminal-muted" x-text="formatTime(signal.timestamp)"></td>
+                                    <td class="py-2 pr-4 text-accent-cyan" x-text="signal.symbol"></td>
+                                    <td class="py-2 pr-4">
+                                        <span :class="{
+                                            'text-signal-buy': signal.signal === 'BUY',
+                                            'text-signal-sell': signal.signal === 'SELL',
+                                            'text-signal-hold': signal.signal === 'HOLD'
+                                        }" x-text="signal.signal"></span>
+                                    </td>
+                                    <td class="py-2 pr-4" x-text="(signal.confidence * 100).toFixed(1) + '%'"></td>
+                                    <td class="py-2" x-text="(signal.raw_probability * 100).toFixed(1) + '%'"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <div x-show="signalHistory.length === 0" class="text-center text-terminal-muted py-8">
+                    Waiting for signals...
+                </div>
+            </div>
+        </div>
+        
+    </main>
+    
+    <!-- Footer -->
+    <footer class="text-center py-6 text-terminal-muted text-xs font-mono">
+        LSTM Neural Network • 209K Parameters • Real-Time Kafka Streaming
+    </footer>
+    
+    <script>
+        function dashboard() {
+            return {
+                connected: false,
+                isLiveMode: false,
+                lastDataTime: null,
+                ws: null,
+                symbols: ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'META'],
+                selectedSymbol: 'AAPL',
+                lastSignal: null,
+                lastPrice: null,
+                currentTime: '',
+                signalHistory: [],
+                priceData: [],
+                priceHistory: {},  // Store price history per symbol
+                chart: null,
+                lineSeries: null,
+                markers: [],
+                markersHistory: {},  // Store markers per symbol
+                chartPoints: 0,  // Debug counter
+                stats: {
+                    total_signals: 0,
+                    avg_confidence: 0,
+                    signals_by_type: {}
+                },
+                
+                init() {
+                    this.updateTime();
+                    setInterval(() => this.updateTime(), 1000);
+                    this.initChart();
+                    this.connectWebSocket();
+                },
+                
+                updateTime() {
+                    this.currentTime = new Date().toLocaleTimeString('en-US', { 
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                },
+                
+                initChart() {
+                    const container = document.getElementById('chart');
+                    this.chart = LightweightCharts.createChart(container, {
+                        layout: {
+                            background: { type: 'solid', color: 'transparent' },
+                            textColor: '#6b7280',
+                        },
+                        grid: {
+                            vertLines: { color: '#1f2937' },
+                            horzLines: { color: '#1f2937' },
+                        },
+                        crosshair: {
+                            mode: LightweightCharts.CrosshairMode.Normal,
+                        },
+                        rightPriceScale: {
+                            borderColor: '#1f2937',
+                        },
+                        timeScale: {
+                            borderColor: '#1f2937',
+                            timeVisible: true,
+                        },
+                    });
+                    
+                    this.lineSeries = this.chart.addLineSeries({
+                        color: '#06b6d4',
+                        lineWidth: 2,
+                    });
+                    
+                    // Responsive
+                    new ResizeObserver(entries => {
+                        if (entries.length === 0 || entries[0].target !== container) return;
+                        const { width, height } = entries[0].contentRect;
+                        this.chart.applyOptions({ width, height });
+                    }).observe(container);
+                },
+                
+                connectWebSocket() {
+                    const wsUrl = `ws://${window.location.hostname}:8501/ws/signals`;
+                    this.ws = new WebSocket(wsUrl);
+                    
+                    this.ws.onopen = () => {
+                        this.connected = true;
+                        console.log('WebSocket connected');
+                    };
+                    
+                    this.ws.onclose = () => {
+                        this.connected = false;
+                        console.log('WebSocket disconnected, reconnecting...');
+                        setTimeout(() => this.connectWebSocket(), 2000);
+                    };
+                    
+                    this.ws.onerror = (err) => {
+                        console.error('WebSocket error:', err);
+                    };
+                    
+                    this.ws.onmessage = (event) => {
+                        const message = JSON.parse(event.data);
+                        this.handleMessage(message);
+                    };
+                },
+                
+                handleMessage(message) {
+                    if (message.type === 'init') {
+                        if (message.data.symbols) {
+                            this.symbols = message.data.symbols;
+                        }
+                        if (message.data.last_signal) {
+                            this.lastSignal = message.data.last_signal;
+                        }
+                        if (message.data.stats) {
+                            this.stats = { ...this.stats, ...message.data.stats };
+                        }
+                        // Initialize prices from last_prices
+                        if (message.data.last_prices) {
+                            
+                            // Initialize price history for all symbols
+                            for (const [sym, priceInfo] of Object.entries(message.data.last_prices)) {
+                                if (!this.priceHistory[sym]) {
+                                    this.priceHistory[sym] = [];
+                                }
+                                const time = Math.floor(Date.now() / 1000);
+                                this.priceHistory[sym].push({ time, value: priceInfo.close });
+                            }
+                            
+                            // Set current symbol's price and chart
+                            const priceData = message.data.last_prices[this.selectedSymbol];
+                            if (priceData) {
+                                this.lastPrice = priceData.close;
+                                this.isLiveMode = true;
+                                this.priceData = [...this.priceHistory[this.selectedSymbol]];
+                                this.chartPoints = this.priceData.length;
+                                
+                                if (this.lineSeries && this.priceData.length > 0) {
+                                    this.lineSeries.setData(this.priceData);
+                                    this.chart.timeScale().fitContent();
+                                }
+                            }
+                        }
+                    }
+                    
+                    else if (message.type === 'signal') {
+                        const signal = message.data;
+                        
+                        // Update last signal for selected symbol
+                        if (signal.symbol === this.selectedSymbol) {
+                            this.lastSignal = signal;
+                        }
+                        
+                        // Add to history
+                        this.signalHistory.unshift(signal);
+                        if (this.signalHistory.length > 100) {
+                            this.signalHistory.pop();
+                        }
+                        
+                        // Update stats
+                        if (message.stats) {
+                            this.stats = { ...this.stats, ...message.stats };
+                        }
+                        
+                        // Add marker to chart
+                        if (signal.symbol === this.selectedSymbol && this.lastPrice) {
+                            this.addSignalMarker(signal);
+                        }
+                    }
+                    
+                    else if (message.type === 'price' || message.type === 'ohlcv') {
+                        const data = message.data;
+                        const symbol = data.symbol;
+                        
+                        // Use current time for chart (live streaming effect)
+                        const now = new Date();
+                        const dataTime = data.timestamp ? new Date(data.timestamp) : now;
+                        const timeDiff = Math.abs(now - dataTime);
+                        this.isLiveMode = timeDiff < 5 * 60 * 1000;
+                        this.lastDataTime = now;
+                        
+                        const price = data.price || data.close;
+                        // Use current time for unique chart points
+                        const time = Math.floor(now.getTime() / 1000);
+                        
+                        
+                        // Store price in history for this symbol
+                        if (!this.priceHistory[symbol]) {
+                            this.priceHistory[symbol] = [];
+                        }
+                        
+                        // Only add if time is different from last point (avoid duplicates)
+                        const lastPoint = this.priceHistory[symbol][this.priceHistory[symbol].length - 1];
+                        if (!lastPoint || lastPoint.time < time) {
+                            this.priceHistory[symbol].push({ time, value: price });
+                        }
+                        
+                        // Keep last 500 points per symbol
+                        if (this.priceHistory[symbol].length > 500) {
+                            this.priceHistory[symbol].shift();
+                        }
+                        
+                        // Update chart if this is the selected symbol
+                        if (symbol === this.selectedSymbol) {
+                            this.lastPrice = price;
+                            this.priceData = [...this.priceHistory[symbol]];
+                            this.chartPoints = this.priceData.length;
+                            
+                            // Update chart
+                            if (this.lineSeries && this.priceData.length > 0) {
+                                this.lineSeries.setData(this.priceData);
+                                this.chart.timeScale().fitContent();
+                            }
+                        }
+                    }
+                },
+                
+                addSignalMarker(signal) {
+                    const time = Math.floor(new Date(signal.timestamp).getTime() / 1000);
+                    const marker = {
+                        time: time,
+                        position: signal.signal === 'BUY' ? 'belowBar' : 'aboveBar',
+                        color: signal.signal === 'BUY' ? '#10b981' : 
+                               signal.signal === 'SELL' ? '#ef4444' : '#f59e0b',
+                        shape: signal.signal === 'BUY' ? 'arrowUp' : 'arrowDown',
+                        text: signal.signal,
+                    };
+                    
+                    // Store marker in history for this symbol
+                    const symbol = signal.symbol;
+                    if (!this.markersHistory[symbol]) {
+                        this.markersHistory[symbol] = [];
+                    }
+                    this.markersHistory[symbol].push(marker);
+                    if (this.markersHistory[symbol].length > 50) {
+                        this.markersHistory[symbol].shift();
+                    }
+                    
+                    // Update current markers if selected
+                    if (symbol === this.selectedSymbol) {
+                        this.markers = [...this.markersHistory[symbol]];
+                        this.lineSeries.setMarkers(this.markers);
+                    }
+                },
+                
+                selectSymbol(symbol) {
+                    this.selectedSymbol = symbol;
+                    
+                    // Load price history for this symbol
+                    this.priceData = this.priceHistory[symbol] || [];
+                    this.markers = this.markersHistory[symbol] || [];
+                    this.chartPoints = this.priceData.length;
+                    
+                    // Get last price
+                    if (this.priceData.length > 0) {
+                        this.lastPrice = this.priceData[this.priceData.length - 1].value;
+                    } else {
+                        this.lastPrice = null;
+                    }
+                    
+                    // Get last signal for this symbol
+                    this.lastSignal = this.signalHistory.find(s => s.symbol === symbol) || null;
+                    
+                    // Update chart
+                    if (this.lineSeries) {
+                        this.lineSeries.setData(this.priceData);
+                        this.lineSeries.setMarkers(this.markers);
+                        if (this.priceData.length > 0) {
+                            this.chart.timeScale().fitContent();
+                        }
+                    }
+                },
+                
+                formatTime(timestamp) {
+                    return new Date(timestamp).toLocaleTimeString('en-US', {
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                }
+            };
+        }
+    </script>
+</body>
+</html>
+

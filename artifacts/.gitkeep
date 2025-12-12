@@ -1,0 +1,5 @@
+# This directory stores trained model artifacts
+# - model.pt: PyTorch model weights
+# - scaler.pkl: MinMaxScaler for feature normalization
+# - feature_list.json: List of feature names
+

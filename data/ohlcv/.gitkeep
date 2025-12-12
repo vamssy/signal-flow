@@ -1,0 +1,3 @@
+# This directory stores OHLCV data files
+# Run `python -m src.data.download` to download sample data
+
