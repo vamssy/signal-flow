@@ -343,6 +343,3 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-<p align="center">
-  Made with ❤️ for algorithmic trading enthusiasts
-</p>
