@@ -6,8 +6,6 @@
 
 A production-grade stock price direction prediction system using LSTM neural networks, Apache Kafka for real-time streaming, and MLflow for experiment tracking. Features a beautiful real-time dashboard for monitoring trading signals.
 
-![Dashboard Screenshot](docs/dashboard.png)
-
 ## ✨ Key Features
 
 - **🧠 LSTM Neural Network**: ~209K parameter model for stock price direction prediction
